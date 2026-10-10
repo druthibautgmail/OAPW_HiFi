@@ -8,10 +8,10 @@ Audiophiler Audio-Stream-Player für den Raspberry Pi 5 unter Debian Trixie (Deb
 
 - **Lock-Freie Architektur:** Vollständige Eliminierung von `std::lock_guard` aus dem zeitkritischen Audio-Thread. Das Web-GUI liest und schreibt Parameter über atomare Zustände, wodurch Buffer Underruns (Xruns) durch Thread-Blockaden physikalisch unmöglich sind.
 - **NEON SIMD Parallelisierung:** Die mathematischen Kernkomponenten (Biquads, FFT) wurden von 64-Bit `double` auf 32-Bit `float` umgestellt. Dies erlaubt dem Cortex-A76 des RPi 5 eine hocheffiziente Vektorisierung (Verarbeitung von 4 Operationen zeitgleich pro Taktzyklus).
-- **Stabile Kaskaden-Filter:** Die instabilen IIR-Filter hoher Ordnung wurden durch kaskadierte Biquad-Filter (2x 2nd Order = 4th Order Linkwitz-Riley/Butterworth) ersetzt. Dies garantiert absolute Stabilität gegen Koeffizienten-Rauschen bei 192 kHz.
+- **Dynamische Linkwitz-Riley-Filter (4. Ordnung):** Anstelle statischer, fehleranfälliger IIR-Polynome berechnet die Engine die Frequenzweichen für das RACE-Crosstalk-Signal nun zur Laufzeit dynamisch. Dies garantiert selbst bei extremen 192 kHz eine absolut phasenstarre, räumlich transparente Bühnenabbildung ohne numerische Instabilität.
 - **Bitperfekter ALSA-Sync:** Die Software-Blockgröße ist starr an die ALSA Hardware-Periodengröße von exakt **1024 Frames** gekoppelt.
 - **POSIX Echtzeit-Scheduling:** Der Audio-Thread läuft mit höchster Linux-Priorität (`SCHED_FIFO` Prio 85) und ist immun gegen Betriebssystem-Hintergrundprozesse.
-- **Rückwirkungsfreies Web-Interface:** HTML5/JavaScript-Oberfläche inklusive Live-Spektrumananalyzer auf Port `8080`.
+- **Rückwirkungsfreies Web-Interface:** HTML5/JavaScript-Oberfläche inklusive hochauflösendem Live-Spektrumanalyzer auf Port `8080`.
 
 ---
 
@@ -36,7 +36,7 @@ graph TD
         
         %% DSP Details
         E --> F{RACE Aktiv?}
-        F -->|Ja| G[4th Order Biquad HP/LP Filter]
+        F -->|Ja| G[4th Order Linkwitz-Riley HP/LP Filter]
         G --> H[Delay-Buffer & Dämpfung / Crosstalk]
         F -->|Nein / Bypass| I[Bypass Pegel-Berechnung]
         
@@ -60,7 +60,7 @@ graph TD
         Q -->|Lock-freie atomare Zuweisung| H
         
         K -.->|Lock-freies Schreiben| R[(spectrumBuffer)]
-        R -.->|Kopie ohne Mutex| S[computeFFT: float-basiert]
+        R -.->|8192-Sample Kopie ohne Mutex| S[computeFFT: float-basiert]
         S -->|Logarithmische Skalierung| T[HTTP GET /api/spectrum]
         T -.->|JSON Daten| P
     end
@@ -109,7 +109,7 @@ audio_output {
     name        "OAPW Integrated FFmpeg"
     # FFmpeg holt das Signal ab, rechnet es via Soxr dynamisch und verlustfrei 
     # auf 192kHz s32le hoch und füttert die OAPW-Pipe:
-    command     "ffmpeg -v quiet -f s32le -ar 192000 -ac 2 -i - -af 'aresample=resampler=soxr:osr=192000:dither_method=triangular' -f s32le -ac 2 -y /tmp/oapw_stream"
+    command     "ffmpeg -v quiet -f s32le -ar 192000 -ac 2 -i - -af 'aresample=resampler=soxr:osr=192000:dither_method=triangular' -f s32le -ac 2 pipe:1 > /tmp/oapw_stream"
 }
 ```
 Danach den Dienst neu starten: `sudo systemctl restart mpd`.
@@ -144,4 +144,4 @@ Rufen Sie im selben Netzwerk die Seite des Pi auf: `http://<IP-ADRESSE-DEINES-PI
 
 - **A/B-Vergleich:** Verzögerungsfreies Umschalten von `RACE: AN` auf `RACE: AUS`.
 - **Geometrie-Rechner:** Berechnet live das ideale Interaural Delay (μ s) und die Dämpfung (dB).
-- **Real-Time Analyzer:** Logarithmisch skalierter 64-Balken-Frequenzvisualisierer von 20 Hz bis 22 kHz.
+- **Hochauflösender Real-Time Analyzer:** Logarithmisch skalierter 32-Balken-Frequenzvisualisierer von 20 Hz bis 20 kHz. Durch ein massiv vergrößertes FFT-Zeitfenster von 8192 Samples werden selbst bei 192 kHz tiefste Bassfrequenzen recht präzise aufgelöst und (fast komplett) getrennt dargestellt.

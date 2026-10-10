@@ -1,5 +1,6 @@
 // Neue Version, die auf double precision verzichtet, um die Performance zu steigern
 // und rhythmische Aussetzer des Audiostreams zu vermeiden
+// Dynamisches Linkwitz-Riley 4. Ordnung Filter-Design integriert
 // U. Thibaut, 10.10.2026
 #ifndef RACE_DSP_ENGINE_H
 #define RACE_DSP_ENGINE_H
@@ -12,12 +13,13 @@
 
 // ---------------------------------------------------------
 // BiquadFilter: Intern auf float umgestellt für RPi 5 NEON SIMD
+// (Wird jetzt ausschließlich für die PEQ-Bänder verwendet)
 // ---------------------------------------------------------
 class BiquadFilter {
 private:
-    float b0, b1, b2, a1, a2; // Geändert von double auf float
-    float z1, z2;             // Geändert von double auf float
-    double freq, q, gainDb;   // Parameter bleiben double für präzise GUI-Einstellung
+    float b0, b1, b2, a1, a2; 
+    float z1, z2;             
+    double freq, q, gainDb;   
     int sampleRate;
 
 public:
@@ -26,15 +28,33 @@ public:
     // Peaking EQ
     void setParameters(double frequency, double qFactor, double gainDb, int sampleRate = 192000);
     
-    // LowPass & HighPass für die RACE-Begrenzung
-    void setLowPass(double frequency, double qFactor, int sampleRate = 192000);
-    void setHighPass(double frequency, double qFactor, int sampleRate = 192000);
-    
-    float process(float in); // Geändert: Nimmt und liefert float für maximale Schleifen-Performance
+    float process(float in); 
     
     double getFreq() const { return freq; }
     double getQ() const { return q; }
     double getGain() const { return gainDb; }
+};
+
+// ---------------------------------------------------------
+// RaceFilter: Dynamischer RACE Frequenzweichen-Filter 
+// (Linkwitz-Riley 4. Ordnung, intern float-optimiert)
+// ---------------------------------------------------------
+class RaceFilter {
+public:
+    enum FilterType { Lowpass, Highpass };
+    RaceFilter(FilterType type);
+    
+    // Berechnet die Koeffizienten dynamisch zur Laufzeit neu
+    void update(double cutoffFreq, int sampleRate);
+    float process(float in);
+    
+private:
+    FilterType type;
+    float b0, b1, b2, a1, a2;
+    
+    // State-Variablen für zwei kaskadierte Stufen = 4. Ordnung
+    float z1_1, z2_1; 
+    float z1_2, z2_2; 
 };
 
 // ---------------------------------------------------------
@@ -56,21 +76,22 @@ private:
     bool filtersEnabled;
     bool eqEnabled; 
 
-    // Analyzer-Puffer: Muss float sein, da auch die schnelle FFT jetzt mit float rechnet
-    std::vector<float> spectrumBuffer; // Geändert von double auf float
+    // Analyzer-Puffer
+    std::vector<float> spectrumBuffer; 
     int spectrumIndex;
 
-    // Delay-Puffer: Extrem kritisch für den RAM-Durchsatz, jetzt hocheffizient als float
-    std::vector<float> delayBufferL; // Geändert von double auf float
-    std::vector<float> delayBufferR; // Geändert von double auf float
+    // Delay-Puffer
+    std::vector<float> delayBufferL; 
+    std::vector<float> delayBufferR; 
     int writeIndex;
 
-    // Kaskadierte Biquads (Nutzen jetzt die optimierte float-Verarbeitung)
-    std::array<BiquadFilter, 2> lpfL;
-    std::array<BiquadFilter, 2> lpfR;
-    std::array<BiquadFilter, 2> hpfL;
-    std::array<BiquadFilter, 2> hpfR;
+    // Dynamische RACE-Filter (ersetzen die alten IIR/Biquad-Arrays)
+    RaceFilter raceLpL;
+    RaceFilter raceLpR;
+    RaceFilter raceHpL;
+    RaceFilter raceHpR;
 
+    // EQ Bänder
     std::array<BiquadFilter, 3> eqL;
     std::array<BiquadFilter, 3> eqR;
 
@@ -101,8 +122,6 @@ public:
     double getEqQ(int bandIndex);
     double getEqGain(int bandIndex);
 
-    // Liefert dem Web-GUI weiterhin double-Werte für die Anzeige, 
-    // die interne Berechnung geschieht aber blockierungsfrei auf floats.
     std::vector<double> getSpectrumBands();
 
     // Die beiden Kern-Render-Funktionen

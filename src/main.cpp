@@ -32,7 +32,7 @@ const char* HTML_CONTENT = R"HTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAPW Control - 192kHz HiFi</title>
+    <title>OAPW Control - 192kHz</title>
     <style>
         body { background-color: #121212; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; }
         h1 { font-weight: 300; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 2rem; }
@@ -51,7 +51,7 @@ const char* HTML_CONTENT = R"HTML(
     </style>
 </head>
 <body>
-    <h1>OAPW Ambiophonics DSP (192kHz)</h1>
+    <h1>OAPW Ambiophonics HiFi DSP (192kHz/32Bit)</h1>
     
     <button id="btnRace" onclick="toggleRace()">RACE: AN</button>
     <button id="btnFilters" onclick="toggleFilters()">Filter: AN</button>
