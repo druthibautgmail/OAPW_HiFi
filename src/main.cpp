@@ -18,16 +18,21 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-// NEU: Native ALSA Bibliothek
+// Für Echtzeit-Priorisierung unter Linux
+#include <pthread.h>
+#include <sched.h>
+
+// Native ALSA Bibliothek
 #include <alsa/asoundlib.h>
 
+// Das vollständig reparierte Web-Interface
 const char* HTML_CONTENT = R"HTML(
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAPW Control</title>
+    <title>OAPW Control - 192kHz HiFi</title>
     <style>
         body { background-color: #121212; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; }
         h1 { font-weight: 300; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 2rem; }
@@ -46,7 +51,7 @@ const char* HTML_CONTENT = R"HTML(
     </style>
 </head>
 <body>
-    <h1>OAPW Ambiophonics DSP</h1>
+    <h1>OAPW Ambiophonics DSP (192kHz)</h1>
     
     <button id="btnRace" onclick="toggleRace()">RACE: AN</button>
     <button id="btnFilters" onclick="toggleFilters()">Filter: AN</button>
@@ -191,7 +196,6 @@ const char* HTML_CONTENT = R"HTML(
                 .then(r => r.json())
                 .then(data => {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
                     let labelHeight = 20;
                     let graphHeight = canvas.height - labelHeight;
                     let barWidth = (canvas.width / data.length) - 1.5;
@@ -217,57 +221,39 @@ const char* HTML_CONTENT = R"HTML(
                     const labelTexts = ['20', '50', '100', '500', '1k', '5k', '10k', '20k'];
                     
                     ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-                    
                     for (let i = 0; i < labels.length; i++) {
                         let pos = (Math.log10(labels[i]) - minLog) / logRange;
                         let labelX = pos * canvas.width;
-                        
                         ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
                         ctx.fillRect(labelX, 0, 1, graphHeight);
-                        
                         ctx.fillStyle = '#888';
-                        if (i === 0) {
-                            ctx.textAlign = 'left';
-                            labelX += 2;
-                        } else if (i === labels.length - 1) {
-                            ctx.textAlign = 'right';
-                            labelX -= 2; 
-                        } else {
-                            ctx.textAlign = 'center';
-                        }
-                        
+                        if (i === 0) { ctx.textAlign = 'left'; labelX += 2; }
+                        else if (i === labels.length - 1) { ctx.textAlign = 'right'; labelX -= 2; }
+                        else { ctx.textAlign = 'center'; }
                         ctx.fillText(labelTexts[i], labelX, canvas.height - 4);
                     }
-
                     setTimeout(drawSpectrum, 50);
                 })
-                .catch(e => {
-                    setTimeout(drawSpectrum, 1000); 
-                });
+                .catch(e => { setTimeout(drawSpectrum, 1000); });
         }
 
         window.onload = () => {
             fetch('/api/status').then(r => r.json()).then(data => {
                 document.getElementById('vol').value = data.volume * 100;
                 document.getElementById('valVol').innerHTML = Math.round(data.volume * 100) + '%';
-                
                 document.getElementById('delay').value = data.delayUs;
                 document.getElementById('valDelay').innerHTML = data.delayUs + ' &micro;s';
-                
                 document.getElementById('att').value = data.attenuationDb;
                 document.getElementById('valAtt').innerHTML = data.attenuationDb.toFixed(1) + ' dB';
-                
                 document.getElementById('center').value = data.centerP * 100;
                 document.getElementById('valCenter').innerHTML = data.centerP.toFixed(2);
 
                 raceActive = data.raceActive;
                 document.getElementById('btnRace').innerText = raceActive ? "RACE: AN" : "RACE: AUS";
                 document.getElementById('btnRace').className = raceActive ? "" : "off";
-
                 filtersActive = data.filtersActive;
                 document.getElementById('btnFilters').innerText = filtersActive ? "Filter: AN" : "Filter: AUS";
                 document.getElementById('btnFilters').className = filtersActive ? "" : "off";
-
                 eqActive = data.eqActive;
                 document.getElementById('btnEq').innerText = eqActive ? "EQ: AN" : "EQ: AUS";
                 document.getElementById('btnEq').className = eqActive ? "" : "off";
@@ -281,7 +267,6 @@ const char* HTML_CONTENT = R"HTML(
                     document.getElementById('valEq'+b+'G').innerHTML = data.eq[b].g.toFixed(1) + ' dB';
                 }
             });
-            
             drawSpectrum();
         };
     </script>
@@ -304,7 +289,6 @@ int getKeyboardInput() {
     return (ch != EOF) ? ch : -1;
 }
 
-// Auf double angepasst
 void printStatus(double vol, double delayUs, double attDb, double center, bool raceActive, bool filtersActive, bool eqActive) {
     std::cout << "\r[Status] Vol: " << (int)(vol * 100) << "% | "
               << "RACE: " << (raceActive ? "AN" : "AUS") << " | "
@@ -314,10 +298,7 @@ void printStatus(double vol, double delayUs, double attDb, double center, bool r
               << "Att: " << attDb << " dB      " << std::flush;
 }
 
-// ---------------------------------------------------------
-// ALSA Initialisierung (Direkter Hardware-Zugriff)
-// ---------------------------------------------------------
-snd_pcm_t* initAlsa(const std::string& deviceName, unsigned int sampleRate) {
+snd_pcm_t* initAlsa(const std::string& deviceName, unsigned int sampleRate, snd_pcm_uframes_t exactFrameBlockSize) {
     snd_pcm_t *pcm_handle;
     int err = snd_pcm_open(&pcm_handle, deviceName.c_str(), SND_PCM_STREAM_PLAYBACK, 0);
     if (err < 0) {
@@ -325,167 +306,96 @@ snd_pcm_t* initAlsa(const std::string& deviceName, unsigned int sampleRate) {
         return nullptr;
     }
 
-    // Hardware-Parameter erzwingen (S32_LE = 32-Bit Integer)
-    err = snd_pcm_set_params(pcm_handle,
-                             SND_PCM_FORMAT_S32_LE,
-                             SND_PCM_ACCESS_RW_INTERLEAVED,
-                             2,
-                             sampleRate,
-                             0, // 0 = Resampling verbieten, Hardware-Format erzwingen!
-                             50000); // 50ms Latenz als Puffer gegen Aussetzer
-    if (err < 0) {
-        std::cerr << "\nFehler: ALSA Parameter nicht unterstützt ( DAC kann ggf. kein 192kHz/32Bit ): " << snd_strerror(err) << std::endl;
-        snd_pcm_close(pcm_handle);
-        return nullptr;
-    }
+    snd_pcm_hw_params_t *hw_params;
+    snd_pcm_hw_params_alloca(&hw_params);
+
+    if (snd_pcm_hw_params_any(pcm_handle, hw_params) < 0) return nullptr;
+    if (snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) return nullptr;
+    if (snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S32_LE) < 0) return nullptr;
+    if (snd_pcm_hw_params_set_channels(pcm_handle, hw_params, 2) < 0) return nullptr;
+
+    unsigned int rrate = sampleRate;
+    if (snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rrate, 0) < 0) return nullptr;
+
+    snd_pcm_uframes_t period_size = exactFrameBlockSize;
+    if (snd_pcm_hw_params_set_period_size_near(pcm_handle, hw_params, &period_size, 0) < 0) return nullptr;
+
+    snd_pcm_uframes_t buffer_size = period_size * 4;
+    if (snd_pcm_hw_params_set_buffer_size_near(pcm_handle, hw_params, &buffer_size) < 0) return nullptr;
+    if (snd_pcm_hw_params(pcm_handle, hw_params) < 0) return nullptr;
+
     return pcm_handle;
 }
 
-
-// ---------------------------------------------------------
-// Audio-Schleife mit blockierendem ALSA Write
-// ---------------------------------------------------------
 void audioProcessingLoop(RACEDspEngine* dspEngine, std::string mode, std::string filePath, std::string alsaDevice, std::atomic<bool>& isRunning, std::string recordPath) {
-    
-    // Wir fordern hart 192kHz an
     unsigned int sampleRate = 192000;
-    snd_pcm_t* pcm_handle = initAlsa(alsaDevice, sampleRate);
-    if (!pcm_handle) {
-        isRunning = false; 
-        return;
-    }
+    const snd_pcm_uframes_t blockSizeFrames = 1024;
 
-    // Puffer für DSP Input (64-Bit Float Interleaved) und ALSA Output (32-Bit Int Interleaved)
-    // Bei 192kHz lesen wir Blöcke à 1024 Frames
-    std::vector<double> dspInBuf(1024 * 2);
-    std::vector<int32_t> alsaOutBuf(1024 * 2);
+    snd_pcm_t* pcm_handle = initAlsa(alsaDevice, sampleRate, blockSizeFrames);
+    if (!pcm_handle) { isRunning = false; return; }
+
+    std::vector<double> dspInBuf(blockSizeFrames * 2);
+    std::vector<int32_t> alsaOutBuf(blockSizeFrames * 2);
 
     if (mode == "stream") {
         std::string actualPipe = filePath.empty() ? "/tmp/oapw_stream" : filePath;
         const char* pipeName = actualPipe.c_str();
-        
-        mkfifo(pipeName, 0666); 
-        chmod(pipeName, 0666);
+        mkfifo(pipeName, 0666); chmod(pipeName, 0666);
         
         int fd = -1; 
-        // Lese-Puffer für die Pipe (wir nehmen an, die Pipe liefert 16-Bit PCM)
-        std::vector<int16_t> intBuf(1024 * 2);
-
-        drwav wavWriter;
-        bool isRecording = false;
-        if (!recordPath.empty()) {
-            drwav_data_format format;
-            format.container = drwav_container_riff;
-            format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-            format.channels = 2;
-            format.sampleRate = sampleRate; // Aufnahme jetzt in 192kHz
-            format.bitsPerSample = 32;
-            if (drwav_init_file_write(&wavWriter, recordPath.c_str(), &format, NULL)) {
-                isRecording = true;
-                std::cout << "\n[Aufnahme] Starte Raw-Recording nach: " << recordPath << std::endl;
-            }
-        }
+        std::vector<int32_t> pipeBuf(blockSizeFrames * 2);
 
         while (isRunning) {
             if (fd < 0) {
                 fd = open(pipeName, O_RDONLY);
                 if (fd < 0) { usleep(100000); continue; }
             }
-
-            // Blockierendes Lesen aus der Pipe
-            ssize_t bytesRead = read(fd, intBuf.data(), intBuf.size() * sizeof(int16_t));
-            
+            ssize_t bytesRead = read(fd, pipeBuf.data(), pipeBuf.size() * sizeof(int32_t));
             if (bytesRead > 0) {
-                size_t samplesRead = bytesRead / sizeof(int16_t);
+                size_t samplesRead = bytesRead / sizeof(int32_t);
                 size_t frames = samplesRead / 2; 
-                
                 if (frames > 0) {
-                    // Konvertierung von 16-Bit nach 64-Bit double
                     for (size_t i = 0; i < frames * 2; ++i) {
-                        dspInBuf[i] = intBuf[i] / 32768.0; 
+                        dspInBuf[i] = pipeBuf[i] / 2147483648.0; 
                     }
-                    
-                    if (isRecording) {
-                        std::vector<float> floatRec(frames * 2);
-                        for(size_t i = 0; i < frames * 2; ++i) floatRec[i] = static_cast<float>(dspInBuf[i]);
-                        drwav_write_pcm_frames(&wavWriter, frames, floatRec.data());
-                    }
-
-                    // DSP Berechnung und 32-Bit Konvertierung
                     dspEngine->processFramesForAlsa(dspInBuf.data(), alsaOutBuf.data(), frames);
-
-                    // Blockierendes Schreiben in ALSA Hardware. Das taktet unsere komplette Schleife!
                     snd_pcm_sframes_t framesWritten = snd_pcm_writei(pcm_handle, alsaOutBuf.data(), frames);
-                    
                     if (framesWritten < 0) {
-                        if (framesWritten == -EPIPE) {
-                            // XRUN (Buffer Underrun). Passiert, wenn die Pipe zu langsam liefert.
-                            snd_pcm_prepare(pcm_handle);
-                        } else {
-                            std::cerr << "\nALSA Write Error: " << snd_strerror(framesWritten) << std::endl;
-                            snd_pcm_recover(pcm_handle, framesWritten, 0);
-                        }
+                        if (framesWritten == -EPIPE) snd_pcm_prepare(pcm_handle);
+                        else snd_pcm_recover(pcm_handle, framesWritten, 0);
                     }
                 }
-            } else if (bytesRead == 0) {
-                close(fd);
-                fd = -1; 
-            } else {
-                usleep(10000); 
-            }
+            } else if (bytesRead == 0) { close(fd); fd = -1; }
+            else { usleep(1000); }
         }
         if (fd >= 0) close(fd);
-        if (isRecording) drwav_uninit(&wavWriter); 
-        
     } else if (mode == "file") {
         unsigned int channels, sourceSampleRate;
         drwav_uint64 totalPCMFrameCount;
         float* sampleData = nullptr;
 
         if (filePath.find(".mp3") != std::string::npos) {
-            drmp3_config config;
-            sampleData = drmp3_open_file_and_read_pcm_frames_f32(filePath.c_str(), &config, &totalPCMFrameCount, NULL);
+            drmp3_config config; sampleData = drmp3_open_file_and_read_pcm_frames_f32(filePath.c_str(), &config, &totalPCMFrameCount, NULL);
         } else {
             sampleData = drwav_open_file_and_read_pcm_frames_f32(filePath.c_str(), &channels, &sourceSampleRate, &totalPCMFrameCount, NULL);
         }
+        if (sampleData == nullptr) { isRunning = false; return; }
 
-        if (sampleData == nullptr) {
-            std::cerr << "\nFehler: Konnte Datei nicht öffnen." << std::endl;
-            isRunning = false; return;
-        }
-
-        size_t totalSamples = totalPCMFrameCount * 2;
-        size_t currentSample = 0;
-
+        size_t totalSamples = totalPCMFrameCount * 2; size_t currentSample = 0;
         while (isRunning && currentSample < totalSamples) {
             size_t samplesRemaining = totalSamples - currentSample;
-            // Max 1024 Frames pro Durchlauf
-            size_t samplesToProcess = (samplesRemaining < 2048) ? samplesRemaining : 2048;
+            size_t samplesToProcess = (samplesRemaining < blockSizeFrames * 2) ? samplesRemaining : blockSizeFrames * 2;
             size_t frames = samplesToProcess / 2;
 
-            // Nach double casten
-            for (size_t i = 0; i < samplesToProcess; i++) {
-                dspInBuf[i] = static_cast<double>(sampleData[currentSample + i]);
-            }
-
+            for (size_t i = 0; i < samplesToProcess; i++) dspInBuf[i] = static_cast<double>(sampleData[currentSample + i]);
             dspEngine->processFramesForAlsa(dspInBuf.data(), alsaOutBuf.data(), frames);
-
-            // Taktgeber: Blockiert, solange der DAC noch abspielt
             snd_pcm_sframes_t framesWritten = snd_pcm_writei(pcm_handle, alsaOutBuf.data(), frames);
-            if (framesWritten < 0) {
-                snd_pcm_recover(pcm_handle, framesWritten, 0);
-            }
-
+            if (framesWritten < 0) snd_pcm_recover(pcm_handle, framesWritten, 0);
             currentSample += samplesToProcess;
         }
-        
-        if (filePath.find(".mp3") != std::string::npos) drmp3_free(sampleData, NULL);
-        else drwav_free(sampleData, NULL);
-        
-        snd_pcm_drain(pcm_handle); // Restlichen Puffer ausspielen lassen
-        isRunning = false; 
+        if (filePath.find(".mp3") != std::string::npos) drmp3_free(sampleData, NULL); else drwav_free(sampleData, NULL);
+        snd_pcm_drain(pcm_handle); isRunning = false; 
     }
-    
     snd_pcm_close(pcm_handle);
 }
 
@@ -557,68 +467,52 @@ void webServerLoop(RACEDspEngine* dspEngine, std::atomic<bool>& isRunning) {
         res.set_content("OK", "text/plain");
     });
 
+    std::cout << "\n[Web] Web-Interface gestartet auf Port 8080" << std::endl;
     svr.listen("0.0.0.0", 8080);
 }
 
 int main(int argc, char** argv) {
-    std::string mode = "stream";
-    std::string filePath = "/tmp/oapw_stream"; 
-    std::string recordPath = "";
-    std::string alsaDevice = "hw:0,0"; // Standardmäßig erstes Hardware-Gerät
+    std::string mode = "stream"; std::string filePath = "/tmp/oapw_stream"; std::string recordPath = ""; std::string alsaDevice = "hw:0,0"; 
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--record" && i + 1 < argc) {
-            recordPath = argv[++i];
-        } else if (arg == "--stream") {
-            mode = "stream";
-            // Prüfen ob ein Pfad mitgegeben wurde, der kein Parameter (mit "-") ist
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                filePath = argv[++i];
-            } else {
-                filePath = "/tmp/oapw_stream";
-            }
-        } else if (arg == "--file" && i + 1 < argc) {
-            mode = "file";
-            filePath = argv[++i];
-        } else if (arg == "--device" && i + 1 < argc) { 
-            alsaDevice = argv[++i];
-        } else if (arg[0] != '-') {
-            mode = "file";
-            filePath = arg;
-        }
+        if (arg == "--record" && i + 1 < argc) recordPath = argv[++i];
+        else if (arg == "--stream") {
+            if (i + 1 < argc && argv[i + 1] != "-") filePath = argv[++i];
+            else filePath = "/tmp/oapw_stream";
+        } else if (arg == "--file" && i + 1 < argc) { mode = "file"; filePath = argv[++i]; }
+        else if (arg == "--device" && i + 1 < argc) { alsaDevice = argv[++i]; }
+        else if (arg != "-") { mode = "file"; filePath = arg; }
     }
 
     std::atomic<bool> isRunning(true);
-    
-    // Engine wird jetzt standardmäßig mit 192000 Hz initialisiert
     RACEDspEngine dspEngine(68.0, -2.3, 0.1, true, 192000);
     dspEngine.setVolume(0.5);
-
-    // ThreadSafeAudioBuffer wurde vollständig eliminiert!
     
     std::thread audioThread(audioProcessingLoop, &dspEngine, mode, filePath, alsaDevice, std::ref(isRunning), recordPath);
     
+    pthread_t threadHandle = audioThread.native_handle();
+    struct sched_param param; param.sched_priority = 85;
+    if (pthread_setschedparam(threadHandle, SCHED_FIFO, &param) != 0) {
+        std::cerr << "\n[WARNUNG] Konnte Echtzeit-Priorität nicht setzen!" << std::endl;
+    }
+
     std::thread webThread(webServerLoop, &dspEngine, std::ref(isRunning));
     webThread.detach();
 
     std::cout << "\n=== Steuerung (Live) ===" << std::endl;
     std::cout << " ALSA Device   : " << alsaDevice << std::endl;
-    std::cout << " Sample Rate   : 192 kHz (32-Bit Output)" << std::endl;
-    std::cout << " Web-Interface : Port 8080" << std::endl;
+    std::cout << " Sample Rate   : 192 kHz (32-Bit Synchron-Output)" << std::endl;
     std::cout << " [q] : Beenden" << std::endl;
     std::cout << "========================\n" << std::endl;
 
     while (isRunning) {
-        int key = getKeyboardInput();
-        if (key == 'q') isRunning = false;
-        
+        int key = getKeyboardInput(); if (key == 'q') isRunning = false;
         printStatus(dspEngine.getVolume(), dspEngine.getDelayUs(), dspEngine.getAttenuationDb(), dspEngine.getCenterP(), dspEngine.getRaceEnabled(), dspEngine.getFiltersEnabled(), dspEngine.getEqEnabled());
         usleep(500000); 
     }
 
     std::cout << "\n\nFahre Engine herunter..." << std::endl;
-    
     if (audioThread.joinable()) audioThread.join();
     return 0;
 }

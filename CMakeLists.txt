@@ -1,24 +1,24 @@
 cmake_minimum_required(VERSION 3.10)
-project(OAPW CXX)
+project(OAPW_HiFi CXX) # Projektname auf HiFi angepasst
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Hochoptimierte Flags für den Raspberry Pi 5 (Cortex-A76) und 64-Bit DSP.
-# -ffast-math und -ftree-vectorize beschleunigen die 192kHz Audio-Berechnung 
-# (Biquad-Filter, FFT) durch Nutzung der ARM NEON SIMD-Befehlssätze extrem.
+# Hochoptimierte Flags für den Raspberry Pi 5 (Cortex-A76).
+# -ffast-math und -ftree-vectorize zwingen GCC dazu, unsere neuen float-Berechnungen
+# (Biquad-Filter, FFT) direkt in parallele ARM NEON SIMD-Befehle zu übersetzen.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcpu=cortex-a76 -mtune=cortex-a76 -ffast-math -ftree-vectorize")
 
-# Fallback: Falls das Projekt doch noch auf einem anderen System (z.B. RPi 4) 
-# kompiliert werden soll, kommentiere die obige Zeile aus und nutze stattdessen diese:
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcpu=native -mtune=native -ffast-math -ftree-vectorize")
+# Sauberer ALSA-Suchmechanismus für CMake unter Debian Trixie
+find_package(ALSA REQUIRED)
 
-include_directories(include)
+# Ordnerstrukturen einbinden
+include_directories(include ${ALSA_INCLUDE_DIRS})
 file(GLOB SOURCES "src/*.cpp")
 
-add_executable(OAPW_Player ${SOURCES})
+# Executable-Name auf die HiFi-Variante angepasst
+add_executable(OAPW_Player_HiFi ${SOURCES})
 
-# Miniaudio-spezifische Verknüpfungen (dl) wurden entfernt.
-# NEU: 'asound' für den direkten ALSA-Hardware-Zugriff.
-# 'm' (Mathematik für DSP) und 'pthread' (für den Webserver & ALSA-Thread) bleiben bestehen.
-target_link_libraries(OAPW_Player asound m pthread)
+# 'm' (Mathematik für DSP) und 'pthread' (für Webserver & Realtime-Audio) bleiben bestehen.
+# ALSA wird nun absolut sauber über die CMake-Variable verlinkt.
+target_link_libraries(OAPW_Player_HiFi ${ALSA_LIBRARIES} m pthread)

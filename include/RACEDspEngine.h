@@ -1,3 +1,6 @@
+// Neue Version, die auf double precision verzichtet, um die Performance zu steigern
+// und rhythmische Aussetzer des Audiostreams zu vermeiden
+// U. Thibaut, 10.10.2026
 #ifndef RACE_DSP_ENGINE_H
 #define RACE_DSP_ENGINE_H
 
@@ -8,14 +11,13 @@
 #include <cstdint>
 
 // ---------------------------------------------------------
-// BiquadFilter: Jetzt auch mit nativem LowPass und HighPass
-// nach den Audio EQ Cookbook Formeln (RBJ)
+// BiquadFilter: Intern auf float umgestellt für RPi 5 NEON SIMD
 // ---------------------------------------------------------
 class BiquadFilter {
 private:
-    double b0, b1, b2, a1, a2;
-    double z1, z2; 
-    double freq, q, gainDb;
+    float b0, b1, b2, a1, a2; // Geändert von double auf float
+    float z1, z2;             // Geändert von double auf float
+    double freq, q, gainDb;   // Parameter bleiben double für präzise GUI-Einstellung
     int sampleRate;
 
 public:
@@ -24,11 +26,11 @@ public:
     // Peaking EQ
     void setParameters(double frequency, double qFactor, double gainDb, int sampleRate = 192000);
     
-    // NEU: LowPass & HighPass für die RACE-Begrenzung
+    // LowPass & HighPass für die RACE-Begrenzung
     void setLowPass(double frequency, double qFactor, int sampleRate = 192000);
     void setHighPass(double frequency, double qFactor, int sampleRate = 192000);
     
-    double process(double in);
+    float process(float in); // Geändert: Nimmt und liefert float für maximale Schleifen-Performance
     
     double getFreq() const { return freq; }
     double getQ() const { return q; }
@@ -54,15 +56,16 @@ private:
     bool filtersEnabled;
     bool eqEnabled; 
 
-    std::vector<double> spectrumBuffer;
+    // Analyzer-Puffer: Muss float sein, da auch die schnelle FFT jetzt mit float rechnet
+    std::vector<float> spectrumBuffer; // Geändert von double auf float
     int spectrumIndex;
 
-    std::vector<double> delayBufferL;
-    std::vector<double> delayBufferR;
+    // Delay-Puffer: Extrem kritisch für den RAM-Durchsatz, jetzt hocheffizient als float
+    std::vector<float> delayBufferL; // Geändert von double auf float
+    std::vector<float> delayBufferR; // Geändert von double auf float
     int writeIndex;
 
-    // NEU: Kaskadierte Biquads (2x 2nd Order = 4th Order Linkwitz-Riley/Butterworth)
-    // Ersetzt die alten instabilen 19-Tap IIR Filter
+    // Kaskadierte Biquads (Nutzen jetzt die optimierte float-Verarbeitung)
     std::array<BiquadFilter, 2> lpfL;
     std::array<BiquadFilter, 2> lpfR;
     std::array<BiquadFilter, 2> hpfL;
@@ -98,8 +101,11 @@ public:
     double getEqQ(int bandIndex);
     double getEqGain(int bandIndex);
 
+    // Liefert dem Web-GUI weiterhin double-Werte für die Anzeige, 
+    // die interne Berechnung geschieht aber blockierungsfrei auf floats.
     std::vector<double> getSpectrumBands();
 
+    // Die beiden Kern-Render-Funktionen
     void processSamples(std::vector<double>& interleavedSamples);
     void processFramesForAlsa(const double* inBuffer64, int32_t* outAlsaBuffer32, int frames);
 };
