@@ -82,6 +82,21 @@ Das System arbeitet mit einem **Festtakt-Konzept (Master-Clock-Prinzip)**. Der D
 ---
 
 ## 🛠️ Kompilieren auf dem Raspberry Pi 5
+Laden Sie das GitHub Archiv auf Ihr Home-Directory und prüfen Sie, ob der Download erfolgreich war
+
+```bash
+cd ~
+git clone https://github.com/druthibautgmail/OAPW_HiFi.git
+cd OAPW_HiFi
+git status
+git branch --show-current
+```
+Falls git noch fehlen sollte: 
+
+```bash
+sudo apt update
+sudo apt install git -y
+```
 
 Stellen Sie sicher, dass die ALSA-Entwicklungspakete auf Ihrem System installiert sind:
 ```bash
