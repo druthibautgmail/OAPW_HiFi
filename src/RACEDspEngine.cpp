@@ -110,7 +110,7 @@ RACEDspEngine::RACEDspEngine(double initialDelayUs, double initialAttenuationDb,
       raceLpL(RaceFilter::Lowpass), raceLpR(RaceFilter::Lowpass),
       raceHpL(RaceFilter::Highpass), raceHpR(RaceFilter::Highpass) 
 {
-    spectrumBuffer.resize(8192, 0.0f);
+    spectrumBuffer.resize(32768, 0.0f);
     spectrumIndex = 0;
 
     // Ringpuffer für das Delay (1 Sekunde maximal)
@@ -125,12 +125,12 @@ RACEDspEngine::RACEDspEngine(double initialDelayUs, double initialAttenuationDb,
     eqEnabled = false;
 
     // RACE Frequenzweichen dynamisch auf die aktuelle Sample Rate setzen
-    double cutoff = 400.0;
-    raceLpL.update(cutoff, sampleRate);
-    raceLpR.update(cutoff, sampleRate);
-    raceHpL.update(cutoff, sampleRate);
-    raceHpR.update(cutoff, sampleRate);
-
+    // bisher: Hart codierte Grenzfreqenz, ab der RACE eingesetzt wird: double cutoff = 400.0;
+    currentCrossoverFreq = 400.0;
+    raceLpL.update(currentCrossoverFreq, sampleRate);
+    raceLpR.update(currentCrossoverFreq, sampleRate);
+    raceHpL.update(currentCrossoverFreq, sampleRate);
+    raceHpR.update(currentCrossoverFreq, sampleRate);
     // Initialisierung der PEQ-Bänder
     for (int i = 0; i < 3; ++i) {
         double f = (i == 0) ? 100.0 : (i == 1) ? 1000.0 : 5000.0;
@@ -186,7 +186,7 @@ void RACEDspEngine::processSamples(std::vector<double>& interleavedSamples) {
             interleavedSamples[i * 2 + 1] = outR;
             
             spectrumBuffer[spectrumIndex] = (outL + outR) * 0.5f;
-            spectrumIndex = (spectrumIndex + 1) % 8192;
+            spectrumIndex = (spectrumIndex + 1) % 32768;
             continue;
         }
 
@@ -234,7 +234,7 @@ void RACEDspEngine::processSamples(std::vector<double>& interleavedSamples) {
         if (outR < -1.0f) outR = -1.0f; if (outR > 1.0f) outR = 1.0f;
 
         spectrumBuffer[spectrumIndex] = (outL + outR) * 0.5f;
-        spectrumIndex = (spectrumIndex + 1) % 8192;
+        spectrumIndex = (spectrumIndex + 1) % 32768;
 
         interleavedSamples[i * 2] = static_cast<double>(outL);
         interleavedSamples[i * 2 + 1] = static_cast<double>(outR);
@@ -259,22 +259,22 @@ void RACEDspEngine::processFramesForAlsa(const double* inBuffer64, int32_t* outA
 }
 
 // Funktionen für die Darstellung im Spektrum-Analyzer des Web-Interface
-// Neu: 8192 Samples wegen höherer Sample Frequency von 192kHz vs. 44.1 kHz in der alten Version!
+// Neu: 32768 Samples wegen höherer Sample Frequency von 192kHz vs. 44.1 kHz in der alten Version!
 
 std::vector<double> RACEDspEngine::getSpectrumBands() {
-    std::vector<float> audioData(8192, 0.0f);
+    std::vector<float> audioData(32768, 0.0f);
     
     {
         std::lock_guard<std::mutex> lock(dspMutex);
-        for(int i = 0; i < 8192; i++) {
-            audioData[i] = spectrumBuffer[(spectrumIndex + i) % 8192];
+        for(int i = 0; i < 32768; i++) {
+            audioData[i] = spectrumBuffer[(spectrumIndex + i) % 32768];
         }
     }
     
-    std::vector<std::complex<float>> complexData(8192);
-    for(int i = 0; i < 8192; i++) {
-        // Hann Window für 8192 Samples
-        float multiplier = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * i / 8191.0f));
+    std::vector<std::complex<float>> complexData(32768);
+    for(int i = 0; i < 32768; i++) {
+        // Hann Window für 32768 Samples
+        float multiplier = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * i / 32767.0f));
         complexData[i] = std::complex<float>(audioData[i] * multiplier, 0.0f);
     }
     
@@ -288,8 +288,8 @@ std::vector<double> RACEDspEngine::getSpectrumBands() {
         float freqStart = std::pow(10.0f, logMin + (float)b / 32.0f * (logMax - logMin));
         float freqEnd   = std::pow(10.0f, logMin + (float)(b + 1) / 32.0f * (logMax - logMin));
         
-        int binStart = (int)(freqStart * 8192.0f / static_cast<float>(sampleRate));
-        int binEnd   = (int)(freqEnd * 8192.0f / static_cast<float>(sampleRate));
+        int binStart = (int)(freqStart * 32768.0f / static_cast<float>(sampleRate));
+        int binEnd   = (int)(freqEnd * 32768.0f / static_cast<float>(sampleRate));
         
         if (binStart < 1) binStart = 1; 
         if (binEnd > 4095) binEnd = 4095; 
@@ -297,8 +297,8 @@ std::vector<double> RACEDspEngine::getSpectrumBands() {
         
         float maxMag = 0.0f;
         for (int i = binStart; i <= binEnd; i++) {
-            // Skalierung durch N/2 (4096.0f)
-            float mag = std::abs(complexData[i]) / 4096.0f;
+            // Skalierung durch N/2 (16384.0f)
+            float mag = std::abs(complexData[i]) / 16384.0f;
             if (mag > maxMag) maxMag = mag;
         }
         
@@ -339,4 +339,20 @@ double RACEDspEngine::getEqQ(int bandIndex) {
 double RACEDspEngine::getEqGain(int bandIndex) {
     if (bandIndex >= 0 && bandIndex < 3) return eqL[bandIndex].getGain();
     return 0.0;
+}
+//-------------------------------------------------------------
+// Neue Funktionen, um die Trennfrequenz für den RACE Algorithmus updaten zu können, statt hart zu codieren
+//-------------------------------------------------------------
+void RACEDspEngine::setCrossoverFreq(double freq) {
+    std::lock_guard<std::mutex> lock(dspMutex);
+    currentCrossoverFreq = freq;
+    // Filter sofort mit der neuen Frequenz updaten
+    raceLpL.update(freq, sampleRate);
+    raceLpR.update(freq, sampleRate);
+    raceHpL.update(freq, sampleRate);
+    raceHpR.update(freq, sampleRate);
+}
+
+double RACEDspEngine::getCrossoverFreq() {
+    return currentCrossoverFreq;
 }

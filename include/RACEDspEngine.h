@@ -71,6 +71,10 @@ private:
     
     double centerP;
     bool freqLimitRACE;
+    
+    // NEU: Eigene Variable für die Trennfrequenz der Linkwitz-Riley-Filter
+    double currentCrossoverFreq; 
+    
     double volume; 
     bool raceEnabled;
     bool filtersEnabled;
@@ -102,6 +106,11 @@ public:
     ~RACEDspEngine();
 
     void setParameters(double newDelayUs, double newAttenuationDb, double newCenterP, bool newFreqLimit);
+    
+    // NEU: Setter und Getter für die Frequenzweiche
+    void setCrossoverFreq(double freq);
+    double getCrossoverFreq();
+    
     void setVolume(double newVolume); 
     void setRaceEnabled(bool enabled);
     void setFiltersEnabled(bool enabled);

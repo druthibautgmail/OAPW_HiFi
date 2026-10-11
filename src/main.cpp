@@ -95,6 +95,15 @@ const char* HTML_CONTENT = R"HTML(
             </div>
         </div>
 
+	<label>Filter Trennfrequenz für RACE-Algorithmus <span id="valFreq" class="value-display">400 Hz</span></label>
+        <div class="control-row">
+            <input type="range" id="freq" min="100" max="1000" step="10" value="300" oninput="updateParam('freq', this.value)">
+            <div class="stepper-buttons">
+                <button onclick="stepValue('freq', 10)">▲</button>
+                <button onclick="stepValue('freq', -10)">▼</button>
+            </div>
+        </div>
+
         <label>Attenuation <span id="valAtt" class="value-display">-2.3 dB</span></label>
         <div class="control-row">
             <input type="range" id="att" min="-12.0" max="0.0" step="0.1" value="-2.3" oninput="updateParam('att', this.value)">
@@ -147,11 +156,13 @@ const char* HTML_CONTENT = R"HTML(
         let filtersActive = true;
         let eqActive = false;
 
-        function updateParam(param, value) {
+	function updateParam(param, value) {
             if(param === 'vol') document.getElementById('valVol').innerHTML = value + '%';
             if(param === 'delay') document.getElementById('valDelay').innerHTML = value + ' &micro;s';
             if(param === 'att') document.getElementById('valAtt').innerHTML = parseFloat(value).toFixed(1) + ' dB';
             if(param === 'center') document.getElementById('valCenter').innerHTML = (value/100).toFixed(2);
+            if(param === 'freq') document.getElementById('valFreq').innerHTML = value + ' Hz';
+            
             fetch(`/api/update?${param}=${value}`);
         }
 
@@ -288,6 +299,9 @@ const char* HTML_CONTENT = R"HTML(
                 document.getElementById('valAtt').innerHTML = data.attenuationDb.toFixed(1) + ' dB';
                 document.getElementById('center').value = data.centerP * 100;
                 document.getElementById('valCenter').innerHTML = data.centerP.toFixed(2);
+		// nächste beide Zeilen neu eingefügt, um Grenzfreqenz für RACE Prozessierung steuern zu können
+                document.getElementById('freq').value = data.freqLimit;
+                document.getElementById('valFreq').innerHTML = data.freqLimit + ' Hz';
 
                 raceActive = data.raceActive;
                 document.getElementById('btnRace').innerText = raceActive ? "RACE: AN" : "RACE: AUS";
@@ -453,7 +467,10 @@ void webServerLoop(RACEDspEngine* dspEngine, std::atomic<bool>& isRunning) {
         json += "\"delayUs\":" + std::to_string(dspEngine->getDelayUs()) + ",";
         json += "\"attenuationDb\":" + std::to_string(dspEngine->getAttenuationDb()) + ",";
         json += "\"centerP\":" + std::to_string(dspEngine->getCenterP()) + ",";
-        json += "\"raceActive\":" + std::string(dspEngine->getRaceEnabled() ? "true" : "false") + ",";
+// Alt!	json += "\"freqLimit\":" + std::to_string(dspEngine->getFreqLimit()) + ",";
+// Nutze stattdessen: getCrossoverFreq() statt getFreqLimit()
+        json += "\"freqLimit\":" + std::to_string(dspEngine->getCrossoverFreq()) + ",";
+	json += "\"raceActive\":" + std::string(dspEngine->getRaceEnabled() ? "true" : "false") + ",";
         json += "\"filtersActive\":" + std::string(dspEngine->getFiltersEnabled() ? "true" : "false") + ",";
         json += "\"eqActive\":" + std::string(dspEngine->getEqEnabled() ? "true" : "false") + ",";
         json += "\"eq\":[";
@@ -484,14 +501,22 @@ void webServerLoop(RACEDspEngine* dspEngine, std::atomic<bool>& isRunning) {
         if (req.has_param("filters")) dspEngine->setFiltersEnabled(std::stoi(req.get_param_value("filters")) != 0);
         if (req.has_param("eq")) dspEngine->setEqEnabled(std::stoi(req.get_param_value("eq")) != 0);
 
-        if (req.has_param("delay") || req.has_param("att") || req.has_param("center")) {
+if (req.has_param("delay") || req.has_param("att") || req.has_param("center")) {
             double delayUs = dspEngine->getDelayUs();
             double attDb = dspEngine->getAttenuationDb();
             double center = dspEngine->getCenterP();
+            
             if (req.has_param("delay")) delayUs = std::stod(req.get_param_value("delay"));
             if (req.has_param("att")) attDb = std::stod(req.get_param_value("att"));
             if (req.has_param("center")) center = std::stod(req.get_param_value("center")) / 100.0;
+            
+            // WICHTIG: Hier wieder den Boolean getFreqLimit() nutzen!
             dspEngine->setParameters(delayUs, attDb, center, dspEngine->getFreqLimit());
+        }
+
+        // NEU: Eigene Abfrage für den Frequenz-Slider
+        if (req.has_param("freq")) {
+            dspEngine->setCrossoverFreq(std::stod(req.get_param_value("freq")));
         }
 
         for(int b=0; b<3; b++) {
@@ -527,9 +552,15 @@ int main(int argc, char** argv) {
     }
 
     std::atomic<bool> isRunning(true);
+  
     RACEDspEngine dspEngine(68.0, -2.3, 0.1, true, 192000);
     dspEngine.setVolume(0.5);
+    // Wieder auf den korrekten Boolean-Wert (true) für die Filter-Aktivierung setzen
+    dspEngine.setParameters(68.0, -2.3, 0.1, true);
     
+    // Und hier übergeben wir nun sauber Deinen Startwert von 300 Hz:
+    dspEngine.setCrossoverFreq(300.0);
+  
     std::thread audioThread(audioProcessingLoop, &dspEngine, mode, filePath, alsaDevice, std::ref(isRunning), recordPath);
     
     pthread_t threadHandle = audioThread.native_handle();
