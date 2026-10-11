@@ -121,11 +121,19 @@ echo -e "[Service]\nProtectHome=read-only\nPrivateTmp=false" | sudo tee /etc/sys
 sudo systemctl daemon-reload
 ```
 
-Danach den Dienst neu starten: `sudo systemctl restart mpd`.
+Danach den Dienst neu starten: `sudo systemctl restart mpd`...
+
+... und die Pipe zur Sicherheit neu anlegen und mit den korrekten Rechten ausstatten:
+
+```text
+sudo rm -f /tmp/oapw_stream
+mkfifo /tmp/oapw_stream
+sudo chmod 666 /tmp/oapw_stream
+```
 
 ### 2. Player via Shell starten
 
-**Für High-End I2S DACs (Nativ-Modus):**
+**Für High-End I2S DACs (Nativ-Modus) sudo ermöglicht dabei die Priorisierung des OAPW_Players auf der CPU:**
 ```bash
 sudo ./OAPW_Player_HiFi --device hw:0,0 --stream /tmp/oapw_stream
 ```
