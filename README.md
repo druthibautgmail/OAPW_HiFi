@@ -107,9 +107,10 @@ Um das integrierte FFmpeg-Upsampling als Live-Konverter in MPD einzubetten, nutz
 audio_output {
     type        "pipe"
     name        "OAPW Integrated FFmpeg"
-    # FFmpeg holt das Signal ab, rechnet es via Soxr dynamisch und verlustfrei 
-    # auf 192kHz s32le hoch und füttert die OAPW-Pipe:
-    command     "ffmpeg -v quiet -f s32le -ar 192000 -ac 2 -i - -af 'aresample=resampler=soxr:osr=192000:dither_method=triangular' -f s32le -ac 2 pipe:1 > /tmp/oapw_stream"
+    # Zwingt MPD zum 192kHz Upsampling und sauberer Float-Ausgabe
+    format      "192000:f:2"
+    # FFmpeg liest die Floats (f32le) und wandelt sie bitperfekt in Integer (s32le) um
+    command     "ffmpeg -v quiet -f f32le -ar 192000 -ac 2 -i - -f s32le -ac 2 pipe:1 > /tmp/oapw_stream"
 }
 ```
 Danach den Dienst neu starten: `sudo systemctl restart mpd`.
