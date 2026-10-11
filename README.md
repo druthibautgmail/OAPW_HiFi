@@ -175,5 +175,5 @@ Rufen Sie im selben Netzwerk die Seite des Pi auf: `http://<IP-ADRESSE-DEINES-PI
 *Nutzen Sie nach dem ersten Start unbedingt einen harten Browser-Reset (`Strg+F5` oder `Cmd+Shift+R`), um das bereinigte JavaScript zu laden.*
 
 - **A/B-Vergleich:** Verzögerungsfreies Umschalten von `RACE: AN` auf `RACE: AUS`.
-- **Geometrie-Rechner:** Berechnet live das ideale Interaural Delay (μ s) und die Dämpfung (dB).
+- **Geometrie-Rechner:** Berechnet live das theoretisch ideale (?) Interaural Delay [μ s] und die Dämpfung (Attenunation [dB]). Startwerte von 68μ s und -2.3dB sind ein guter Ausgangspunkt für viele Setups! In kleinen Schritten variieren ist empfehlenswert.
 - **Hochauflösender Real-Time Analyzer:** Logarithmisch skalierter 32-Balken-Frequenzvisualisierer von 20 Hz bis 20 kHz. Durch ein massiv vergrößertes FFT-Zeitfenster von 8192 Samples werden selbst bei 192 kHz tiefste Bassfrequenzen recht präzise aufgelöst und (fast komplett) getrennt dargestellt.
