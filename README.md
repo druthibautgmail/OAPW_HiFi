@@ -60,7 +60,7 @@ graph TD
         Q -->|Lock-freie atomare Zuweisung| H
         
         K -.->|Lock-freies Schreiben| R[(spectrumBuffer)]
-        R -.->|8192-Sample Kopie ohne Mutex| S[computeFFT: float-basiert]
+        R -.->|32768-Sample Kopie ohne Mutex| S[computeFFT: float-basiert]
         S -->|Logarithmische Skalierung| T[HTTP GET /api/spectrum]
         T -.->|JSON Daten| P
     end
