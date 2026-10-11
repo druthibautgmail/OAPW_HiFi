@@ -113,6 +113,14 @@ audio_output {
     command     "ffmpeg -v quiet -f f32le -ar 192000 -ac 2 -i - -f s32le -ac 2 pipe:1 > /tmp/oapw_stream"
 }
 ```
+MPD benötigt Zugriff auf das /tmp-Verzeichnis für die Pipe (/tmp/oapw_stream) und Lesezugriff auf die Musikdateien.
+
+```text
+sudo mkdir -p /etc/systemd/system/mpd.service.d
+echo -e "[Service]\nProtectHome=read-only\nPrivateTmp=false" | sudo tee /etc/systemd/system/mpd.service.d/override.conf
+sudo systemctl daemon-reload
+```
+
 Danach den Dienst neu starten: `sudo systemctl restart mpd`.
 
 ### 2. Player via Shell starten
