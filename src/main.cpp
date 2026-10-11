@@ -25,7 +25,7 @@
 // Native ALSA Bibliothek
 #include <alsa/asoundlib.h>
 
-// Das vollständig reparierte Web-Interface
+// Das vollständig reparierte Web-Interface mit Feinjustierung (UP/DOWN)
 const char* HTML_CONTENT = R"HTML(
 <!DOCTYPE html>
 <html lang="de">
@@ -40,6 +40,16 @@ const char* HTML_CONTENT = R"HTML(
         .calc-group { border: 1px solid #007aff; }
         .eq-band { border-top: 1px solid #333; padding-top: 1rem; margin-top: 1rem; }
         label { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-weight: bold; font-size: 0.9rem; }
+        
+        /* Layout für Slider + Buttons nebeneinander */
+        .control-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+        .control-row input[type="range"] { margin-bottom: 0; flex-grow: 1; cursor: pointer; }
+        
+        /* Spezifisches Styling für die Feinjustierungs-Buttons */
+        .stepper-buttons { display: flex; flex-direction: column; gap: 4px; }
+        .stepper-buttons button { width: 36px; padding: 6px; margin: 0; font-size: 10px; border-radius: 4px; background: #333; }
+        .stepper-buttons button:hover { background: #007aff; }
+
         input[type="range"] { width: 100%; cursor: pointer; margin-bottom: 1rem; }
         input[type="number"] { width: 100%; padding: 10px; margin-bottom: 15px; background: #333; color: white; border: none; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
         .value-display { font-weight: normal; color: #aaa; }
@@ -77,10 +87,22 @@ const char* HTML_CONTENT = R"HTML(
         <input type="range" id="vol" min="0" max="100" value="50" oninput="updateParam('vol', this.value)">
 
         <label>Interaural Delay <span id="valDelay" class="value-display">68 &micro;s</span></label>
-        <input type="range" id="delay" min="20" max="1500" step="2" value="68" oninput="updateParam('delay', this.value)">
+        <div class="control-row">
+            <input type="range" id="delay" min="0" max="200" step="1" value="68" oninput="updateParam('delay', this.value)">
+            <div class="stepper-buttons">
+                <button onclick="stepValue('delay', 1)">▲</button>
+                <button onclick="stepValue('delay', -1)">▼</button>
+            </div>
+        </div>
 
         <label>Attenuation <span id="valAtt" class="value-display">-2.3 dB</span></label>
-        <input type="range" id="att" min="-30" max="0" step="0.1" value="-2.3" oninput="updateParam('att', this.value)">
+        <div class="control-row">
+            <input type="range" id="att" min="-12.0" max="0.0" step="0.1" value="-2.3" oninput="updateParam('att', this.value)">
+            <div class="stepper-buttons">
+                <button onclick="stepValue('att', 0.1)">▲</button>
+                <button onclick="stepValue('att', -0.1)">▼</button>
+            </div>
+        </div>
 
         <label>Center Parameter <span id="valCenter" class="value-display">0.10</span></label>
         <input type="range" id="center" min="0" max="100" value="10" oninput="updateParam('center', this.value)">
@@ -133,6 +155,22 @@ const char* HTML_CONTENT = R"HTML(
             fetch(`/api/update?${param}=${value}`);
         }
 
+        // Neue Funktion für die UP/DOWN Buttons
+        function stepValue(sliderId, step) {
+            const slider = document.getElementById(sliderId);
+            let currentValue = parseFloat(slider.value);
+            let newValue = currentValue + step;
+            
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            
+            if (newValue < min) newValue = min;
+            if (newValue > max) newValue = max;
+            
+            slider.value = (sliderId === 'att') ? newValue.toFixed(1) : Math.round(newValue);
+            updateParam(sliderId, slider.value);
+        }
+
         function updateEq(band, param, value) {
             let labelId = 'valEq' + band + param.toUpperCase();
             if(param === 'f') document.getElementById(labelId).innerHTML = value + ' Hz';
@@ -177,10 +215,13 @@ const char* HTML_CONTENT = R"HTML(
             let idealDelay = Math.round((delta_d / c) * 1000); 
             let geoLoss = 20 * Math.log10(d_ipsi / d_contra);
             let idealAtt = geoLoss - (idealDelay * 0.015); 
-            if (idealDelay > 1500) idealDelay = 1500;
-            if (idealDelay < 20) idealDelay = 20;
-            if (idealAtt < -30) idealAtt = -30;
+            
+            // Die Limits an die neuen Slider-Grenzwerte angepasst
+            if (idealDelay > 200) idealDelay = 200;
+            if (idealDelay < 0) idealDelay = 0;
+            if (idealAtt < -12) idealAtt = -12;
             if (idealAtt > 0) idealAtt = 0;
+            
             document.getElementById('delay').value = idealDelay;
             updateParam('delay', idealDelay);
             let attRounded = (Math.round(idealAtt * 10) / 10).toFixed(1);
