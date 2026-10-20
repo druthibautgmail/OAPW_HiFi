@@ -351,13 +351,13 @@ Die Unterstützung von bis zu 192 kHz und 32 Bit setzt voraus, dass die gesamte 
 
 ## 7. Danksagung
 
-Ein besonderer Dank gilt **Prof. Dr. Dieter Steinhilber**, dessen wertvolle Hinweise, technische Anregungen und tiefgreifendes Verständnis für High-End Audiophilie maßgeblich zur Weiterentwicklung und Reifung dieses Programms beigetragen haben.
+Mein ganz besonderer Dank gilt **Prof. Dr. Dieter Steinhilber**, dessen wertvolle Hinweise, technische Anregungen und tiefgreifendes Verständnis für High-End Audiophilie maßgeblich zur Weiterentwicklung und Reifung dieses Programms beigetragen haben.
 
 Ein weiterer Dank gilt **Dr. Michael Graw**, meinem ehemaligen Ambiophonie-Mentor, der mir in meiner aktiven Zeit als CTO der Drägerwerk AG in Lübeck die Augen und vor allem die Ohren für die Ambiophonie geöffnet hat. 
 
 Ebenso gilt unser Dank **Ralph Glasgal** für sein Lebenswerk, seine wegweisenden Forschungen am Ambiophonics Institute und die Entwicklung der Ambiophonie, die dieses Softwareprojekt inspiriert und ermöglicht haben.
 
-Dieses Programm wurde mit Unterstützung durch Gemini und in kleinen Teilen auch ChatGPT entwickelt. Anregungen für das Design der Filter, des GUI und des Kern-Algorithmus stammen aus verschiedensten Quellen in der Fachliteratur und der audiophilen Community, thanks and keep sharing! 
+Dieses Programm wurde - insbesondere bei schnellen Änderungen und der Fehlersuche - mit Unterstützung durch Gemini und in kleinen Teilen auch ChatGPT entwickelt. Anregungen für das Design der Filter, des GUI und des Kern-Algorithmus stammen aus verschiedensten Quellen der Fachliteratur und der audiophilen Community, thanks and keep sharing! 
 
 ---
 
