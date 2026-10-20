@@ -1,0 +1,20 @@
+# /etc/minidlna.conf - OAPW Library Server
+
+# Pfad zu deiner lokalen Musikbibliothek (an den tatsächlichen Pfad anpassen)
+media_dir=A,/home/pi/Music
+
+# Name des Servers, wie er in Linn Kazoo angezeigt wird
+friendly_name=OAPW High-End Library
+
+# Zwingend auf eth0 festlegen, um Multicast-Probleme mit WLAN zu vermeiden
+network_interface=eth0
+
+# Datenbank- und Log-Pfade
+db_dir=/var/cache/minidlna
+log_dir=/var/log
+
+# Automatisches Erkennen neuer Dateien aktivieren
+inotify=yes
+
+# Port für den DLNA-Server
+port=8200

@@ -1,0 +1,17 @@
+vol=1
+delay=136
+att=-2.2
+center=0.49
+freq=400
+race=1
+filters=1
+eqActive=1
+eq0f=110
+eq0q=0.707
+eq0g=-2
+eq1f=980
+eq1q=0.707
+eq1g=1.5
+eq2f=5500
+eq2q=0.707
+eq2g=0.5

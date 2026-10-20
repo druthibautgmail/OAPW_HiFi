@@ -1,0 +1,42 @@
+# 1. Kompilierte Binärdateien und Objektdateien
+*.o
+*.out
+*.a
+*.so
+OAPW_Player
+
+# 2. Build- und Output-Verzeichnisse (falls genutzt)
+bin/
+build/
+obj/
+
+# 3. Temporäre Dateien und Logs
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.directory
+
+# 4. OS-spezifische Dateien (macOS / Windows)
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+
+# 5. IDEs und Editoren (VS Code, CLion, Xcode etc.)
+.vscode/
+.idea/
+*.xcworkspace/
+xcuserdata/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# 6. Systemspezifische Audio-Backups oder Test-Exporte
+*.wav
+*.flac
+*.mp3

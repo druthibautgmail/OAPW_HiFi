@@ -1,0 +1,12 @@
+# Mediaplayer (Pete Manchester) Konfiguration
+# Ablageort auf dem Zielsystem: /home/pi/mediaplayer/app.properties
+
+# UPnP / OpenHome Subnetz-Bindung (Ersetze das Subnetz ggf. passend zum Router deines lokalen Netzwerks)
+ohnet.subnet=192.168.2.0
+
+# Verbindung zum lokalen mpd Daemon
+mpd.host=127.0.0.1
+mpd.port=6600
+
+# Name des Abspielgeräts für Linn Kazoo
+friendly.name=OAPW MediaPlayer

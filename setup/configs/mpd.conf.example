@@ -1,0 +1,27 @@
+# /etc/mpd.conf - OAPW HiFi Edition (ALSA Loopback Ziel)
+
+music_directory		"/home/pi/Music"
+playlist_directory	"/var/lib/mpd/playlists"
+db_file			"/var/lib/mpd/tag_cache"
+log_file		"/var/log/mpd/mpd.log"
+pid_file		"/run/mpd/pid"
+state_file		"/var/lib/mpd/state"
+user			"pi"
+bind_to_address		"127.0.0.1"
+port			"6600"
+
+# Audio-Ausgabe direkt an das Loopback mit erzwungenem Upsampling auf 192kHz/32Bit
+audio_output {
+    type		"alsa"
+    name		"OAPW Loopback Output"
+    device		"hw:Loopback,0,0"
+    format		"192000:32:2"
+    mixer_type		"none"              # Bitperfekt: Keine Software-Lautstärke in mpd
+}
+
+# High-Quality SoX Resampler, ersetzt den separaten Aufruf von ffmpeg!
+resampler {
+    plugin		"soxr"
+    quality		"very high"
+    threads		"1"
+}
