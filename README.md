@@ -21,13 +21,14 @@ Der Raspberry Pi 3 wurde mit dieser Programmversion noch nicht abschließend auf
 
 ### Audio-Hardware
 
-Erforderlich ist ein kompatibler Audio-DAC, beispielsweise als I²S-DAC-HAT.
+Erforderlich ist ein kompatibler Audio-DAC, beispielsweise als I²S-DAC-HAT oder auch USB-DACs wie der Sharkoon-DAC, bei letzteren ist allerdings die Verarbeitung der hohen Qualität des Algorithums bei Sampling-Frequenzen und Bit-Tiefen von 192kHz und 32Bit oft nicht möglich. Diese einfacheren DACs müssen dann ggf. mit angepassten Ausgabe-Befehlen angesteuert werden, z.B. über plughw:0,0 mit Resampling auf niedrigere Auflösungen => u.U. ein Qualitätsverlust.
 
 Mögliche Optionen sind:
 
 - Allo Katana
 - Allo Boss DAC
 - DAC HAT Pro
+- (Sharkoon USB DAC) mit den o.g. Einschränkungen
 
 Die konkrete Konfiguration des ALSA-Gerätenamens muss an die installierte Hardware angepasst werden.
 
