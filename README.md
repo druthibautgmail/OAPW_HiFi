@@ -63,19 +63,19 @@ sudo apt-get update
 sudo apt-get install build-essential libasound2-dev
 ```
 ### 2.2 Repository herunterladen
-# Das Repository (Zweig 'alsa-edition') in den Ordner 'OAPW_HiFi_AL' klonen
+#### Das Repository (Zweig 'alsa-edition') in den Ordner 'OAPW_HiFi_AL' klonen
 ```bash
 git clone -b alsa-edition https://github.com/druthibautgmail/OAPW_HiFi.git OAPW_HiFi_AL
 ```
-# In das Verzeichnis wechseln
+#### In das Verzeichnis wechseln
 ```bash
 cd OAPW_HiFi_AL
 ```
-# Das Programm kompilieren
+#### Das Programm kompilieren
 ```bash
 make
 ```
-# Den Player ggf. für einen ersten Test manuell starten
+#### Den Player ggf. für einen ersten Test manuell starten
 ```bash
 ./OAPW_Player
 ```
