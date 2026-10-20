@@ -55,13 +55,13 @@ Benötigte Komponenten:
 - ALSA-Entwicklerbibliotheken
 - Linux-Kernelmodul `snd-aloop`
 
-### 2.1a Pakete installieren
+### 2.1 Pakete installieren
 
 ```bash
 sudo apt-get update
 sudo apt-get install build-essential libasound2-dev
 ```
-### 2.1b Repository herunterladen
+### 2.2 Repository herunterladen
 # Das Repository (Zweig 'alsa-edition') in den Ordner 'OAPW_HiFi_AL' klonen
 ```bash
 git clone -b alsa-edition https://github.com/druthibautgmail/OAPW_HiFi.git OAPW_HiFi_AL
@@ -78,7 +78,7 @@ make
 ```bash
 ./OAPW_Player
 ```
-### 2.2 WLAN und Bluetooth optional deaktivieren
+### 2.3 WLAN und Bluetooth optional deaktivieren
 
 Für eine dauerhafte Deaktivierung können – sofern vom jeweiligen System unterstützt – folgende Einträge in `/boot/firmware/config.txt` ergänzt werden:
 
@@ -96,7 +96,7 @@ sudo rfkill block wifi
 sudo rfkill block bluetooth
 ```
 
-### 2.3 ALSA-Loopback aktivieren
+### 2.4 ALSA-Loopback aktivieren
 
 Das Kernelmodul `snd-aloop` stellt ein virtuelles ALSA-Audiogerät bereit. Es dient als internes Audiokabel zwischen dem Player und der OAPW-DSP-Engine.
 
